@@ -1,0 +1,238 @@
+services:    
+  gateway.api:
+    image: ${DOCKER_REGISTRY-}gatewayapi
+    build:
+      context: .
+      dockerfile: Gateway.API/Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+      - "Routes__0__DownstreamPathTemplate=/{everything}"
+      - "Routes__0__DownstreamScheme=http"
+      - "Routes__0__DownstreamHostAndPorts__0__Host=identity.api"
+      - "Routes__0__DownstreamHostAndPorts__0__Port=5001"
+      - "Routes__0__UpstreamPathTemplate=/identity/{everything}"
+      - "Routes__0__UpstreamHttpMethod__0=Get"
+      - "Routes__0__UpstreamHttpMethod__1=Post"
+      - "Routes__0__UpstreamHttpMethod__2=Put"
+      - "Routes__0__UpstreamHttpMethod__3=Delete"
+      - "Routes__1__DownstreamPathTemplate=/{everything}"
+      - "Routes__1__DownstreamScheme=http"
+      - "Routes__1__DownstreamHostAndPorts__0__Host=catalog.api"
+      - "Routes__1__DownstreamHostAndPorts__0__Port=5002"
+      - "Routes__1__UpstreamPathTemplate=/catalog/{everything}"
+      - "Routes__1__UpstreamHttpMethod__0=Get"
+      - "Routes__1__UpstreamHttpMethod__1=Post"
+      - "Routes__1__UpstreamHttpMethod__2=Put"
+      - "Routes__1__UpstreamHttpMethod__3=Delete"
+      - "Routes__2__DownstreamPathTemplate=/{everything}"
+      - "Routes__2__DownstreamScheme=http"
+      - "Routes__2__DownstreamHostAndPorts__0__Host=ordering.api"
+      - "Routes__2__DownstreamHostAndPorts__0__Port=5003"
+      - "Routes__2__UpstreamPathTemplate=/ordering/{everything}"
+      - "Routes__2__UpstreamHttpMethod__0=Get"
+      - "Routes__2__UpstreamHttpMethod__1=Post"
+      - "Routes__2__UpstreamHttpMethod__2=Put"
+      - "Routes__2__UpstreamHttpMethod__3=Delete"
+      - "Routes__3__DownstreamPathTemplate=/{everything}"
+      - "Routes__3__DownstreamScheme=http"
+      - "Routes__3__DownstreamHostAndPorts__0__Host=basket.api"
+      - "Routes__3__DownstreamHostAndPorts__0__Port=5004"
+      - "Routes__3__UpstreamPathTemplate=/basket/{everything}"
+      - "Routes__3__UpstreamHttpMethod__0=Get"
+      - "Routes__3__UpstreamHttpMethod__1=Post"
+      - "Routes__3__UpstreamHttpMethod__2=Put"
+      - "Routes__3__UpstreamHttpMethod__3=Delete"
+    networks:
+      - eshop_network
+    depends_on:
+      - identity.api
+      - catalog.api
+      - ordering.api
+      - basket.api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  identity.api:
+    build:
+      context: ../../microservices/Identity
+      dockerfile: Identity.API/Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5001
+      - "ConnectionStrings__DefaultConnection=Server=identity-db;Database=IdentityDb;User Id=sa;Password=Password123;TrustServerCertificate=True;"
+      - "JwtSettings__Key=super-secret-key-that-is-at-least-256-bits-long-for-jwt-token-signing-2024"
+      - "JwtSettings__Issuer=IdentityApi"
+      - "JwtSettings__Audience=EshopClients"
+    networks:
+      - eshop_network
+    depends_on:
+      - identity-db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: dotnet Identity.API.dll
+
+  catalog.api:
+    build:
+      context: ../../microservices/Catalog
+      dockerfile: Catalog.API/Dockerfile
+    ports:
+      - "5002:5002"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5002
+      - "ConnectionStrings__DefaultConnection=Server=catalog-db;Database=CatalogDb;User Id=sa;Password=Password123;TrustServerCertificate=True;"
+    networks:
+      - eshop_network
+    depends_on:
+      - catalog-db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: dotnet Catalog.API.dll
+
+  basket.api:
+    build:
+      context: ../../microservices/Basket
+      dockerfile: Basket.API/Dockerfile
+    ports:
+      - "5004:5004"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5004
+      - "ConnectionStrings__Redis=redis:6379"
+      - "JwtSettings__Key=super-secret-key-that-is-at-least-256-bits-long-for-jwt-token-signing-2024"
+      - "JwtSettings__Issuer=IdentityApi"
+      - "JwtSettings__Audience=EshopClients"
+    depends_on:
+      - redis
+    networks:
+      - eshop_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ordering.api:
+    build:
+      context: ../../microservices/Ordering
+      dockerfile: Ordering.API/Dockerfile
+    ports:
+      - "5003:5003"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5003
+      - "ConnectionStrings__DefaultConnection=Server=ordering-db;Database=OrderingDb;User Id=sa;Password=Password123;TrustServerCertificate=True;"
+      - "JwtSettings__Key=super-secret-key-that-is-at-least-256-bits-long-for-jwt-token-signing-2024"
+      - "JwtSettings__Issuer=IdentityApi"
+      - "JwtSettings__Audience=EshopClients"
+    networks:
+      - eshop_network
+    depends_on:
+      - ordering-db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: dotnet Ordering.API.dll
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - eshop_network
+    volumes:
+      - redis_data:/data
+
+  redisinsight:
+    image: redislabs/redisinsight:1.14.0
+    container_name: redisinsight
+    ports:
+      - "8001:8001"
+    volumes:
+      - redisinsight_data:/db
+    environment:
+      - REDISINSIGHT_HOST=0.0.0.0
+      - REDISINSIGHT_PORT=8001
+      - RITRUSTEDORIGINS=http://localhost:8001
+    networks:
+      - eshop_network
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  identity-db:
+    container_name: identity-db
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Password123
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    networks:
+      eshop_network:
+        aliases:
+          - sqlserver
+    volumes:
+      - identity_data:/var/opt/mssql
+
+  catalog-db:
+    container_name: catalog-db
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Password123
+      - MSSQL_PID=Developer
+    ports:
+      - "1434:1433"
+    networks:
+      eshop_network:
+        aliases:
+          - sqlserver2
+    volumes:
+      - catalog_data:/var/opt/mssql
+
+  ordering-db:
+    container_name: ordering-db
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Password123
+      - MSSQL_PID=Developer
+    ports:
+      - "1435:1433"
+    networks:
+      eshop_network:
+        aliases:
+          - sqlserver3
+    volumes:
+      - ordering_data:/var/opt/mssql
+
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    restart: always
+    ports:
+      - "8002:8080"
+    networks:
+      - eshop_network
+    environment:
+      - ADMINER_DEFAULT_SERVER=localhost
+      - ADMINER_DEFAULT_USER=sa
+      - ADMINER_DEFAULT_PASSWORD=Password123
+    depends_on:
+      - identity-db
+      - catalog-db
+      - ordering-db
+
+networks:
+  eshop_network:
+
+volumes:
+  redis_data:
+  redisinsight_data:
+  identity_data:
+  catalog_data:
+  ordering_data:
