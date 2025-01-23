@@ -1,4 +1,4 @@
-# Backedn - ecommerce-project-microservices
+# Backend - ecommerce-project-microservices
 
 ## Description
 Ce dépôt contient le backend de la plateforme d'achat mobile, construit avec une architecture de microservices. Chaque service utilise **.NET** comme framework principal, est dockerisé, et communique via un **Event Bus** (Kafka). L'API Gateway est implémentée avec **YARP** pour le routage et l'équilibrage de charge.
